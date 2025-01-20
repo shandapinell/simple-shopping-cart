@@ -1,29 +1,39 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import './App.css'
 import Nav from './components/Nav'
 import Store from './components/Store'
 import { products, IProduct } from './data/ProductList'
 import React from 'react'
 import Cart from './components/Cart'
-
+import debounce from 'lodash/debounce'
 
 function App() {
-  const [visibleProducts, setVisibleProducts] = useState<IProduct[]>(products);
+  const memoizedProducts = useMemo(() => products, []);
+  const [visibleProducts, setVisibleProducts] = useState<IProduct[]>(memoizedProducts);
   const [cart, setCart] = useState<IProduct[]>([])
   const [isCartOpen, setIsCartOpen] = useState(false)
 
   const addToCart = useCallback((product: IProduct) => {
-      setCart([...cart, product]);
+      setCart(prev => [...prev, product])
   }, [cart])
 
+  const debouncedSort = useMemo(
+    () =>
+      debounce((sortOn: string) => {
+        if (sortOn === 'all') {
+          setVisibleProducts(memoizedProducts);
+        } else {
+          const sortedProducts = memoizedProducts.filter(product => product.category === sortOn);
+          setVisibleProducts(sortedProducts);
+        }
+      }, 300),
+    [memoizedProducts]
+  );
+
   const sortCart = useCallback((sortOn: string) => {
-    if (sortOn === 'all') {
-      setVisibleProducts(products);
-    } else {
-      const sortedProducts = products.filter(product => product.category === sortOn);
-      setVisibleProducts(sortedProducts);
-    }
-  }, [])
+    debouncedSort(sortOn);
+  }, [debouncedSort]);
+
 
   const removeFromCart = useCallback((product: IProduct) => {
     setCart(prevCart => {
@@ -35,9 +45,15 @@ function App() {
     });
   }, [])
 
+  useEffect(() => {
+    return () => {
+      debouncedSort.cancel();
+    };
+  }, [debouncedSort]);
+
   return (
     <div>
-      <Nav cart={cart} onCartOpenClick={() =>setIsCartOpen(!isCartOpen)}/>
+      <Nav cart={cart} onCartOpenClick={() => setIsCartOpen(!isCartOpen)}/>
       <Store onUserAdd={addToCart} onCartSort={sortCart} visibleProducts={visibleProducts}/>
       {
         isCartOpen && <Cart cart={cart} closeCart={() => setIsCartOpen(false)} removeFromCart={removeFromCart}/>
